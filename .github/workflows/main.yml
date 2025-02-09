@@ -1,0 +1,63 @@
+name: Notify Discord
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - closed
+      - reopened
+      - synchronize
+  issues:
+    types:
+      - opened
+      - closed
+      - reopened
+  release:
+    types:
+      - created
+      - published
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Send notification to Discord
+        run: |
+          # Define the message to send based on the event
+          case "${{ github.event_name }}" in
+            push)
+              MESSAGE="📦 Commit pushed: ${{ github.actor }} - ${{ github.sha }}\nMessage: ${{ github.event.head_commit.message }}\nLink: https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+              ;;
+            pull_request)
+              case "${{ github.event.action }}" in
+                opened)
+                  MESSAGE="🚀 New PR opened by ${{ github.actor }}: ${{ github.event.pull_request.title }}\nLink: ${{ github.event.pull_request.html_url }}"
+                  ;;
+                closed|merged)
+                  if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+                    MESSAGE="🔒 PR merged by ${{ github.actor }}: ${{ github.event.pull_request.title }}\nLink: ${{ github.event.pull_request.html_url }}"
+                  else
+                    MESSAGE="🔒 PR closed by ${{ github.actor }}: ${{ github.event.pull_request.title }}\nLink: ${{ github.event.pull_request.html_url }}"
+                  fi
+                  ;;
+              esac
+              ;;
+            issues)
+              MESSAGE="📄 Issue ${{ github.event.action }}: ${{ github.event.issue.title }}\nLink: ${{ github.event.issue.html_url }}"
+              ;;
+            release)
+              MESSAGE="🎉 Release ${{ github.event.release.name }}: ${{ github.event.release.body }}\nLink: ${{ github.event.release.html_url }}"
+              ;;
+          esac
+
+          # Send the message to Discord via the Webhook
+          curl -X POST -H "Content-Type: application/json" \
+            -d "{\"content\": \"$MESSAGE\"}" \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}"
